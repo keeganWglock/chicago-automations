@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ActivityType } = require('discord.js');
 const express = require('express');
 
 // --- 1. START LIGHTWEIGHT WEB SERVER FOR RENDER ---
@@ -22,6 +22,28 @@ const client = new Client({
     ] 
 });
 
+// Fixed helper function using setPresence for v14 reliability
+async function updateBotStatus() {
+    try {
+        // Fetch the server directly by ID to bypass cache failures
+        const guild = await client.guilds.fetch(process.env.SERVER_ID);
+        if (!guild) return;
+        
+        const totalMembers = guild.memberCount;
+        
+        client.user.setPresence({
+            activities: [{ 
+                name: `${totalMembers} members`, 
+                type: ActivityType.Watching 
+            }],
+            status: 'online'
+        });
+        console.log(`Status synced successfully: Watching ${totalMembers} members.`);
+    } catch (error) {
+        console.error('Failed to update bot presence status:', error.message);
+    }
+}
+
 // Define Slash Commands
 const commands = [
     new SlashCommandBuilder()
@@ -32,20 +54,25 @@ const commands = [
         .setDescription('Check the status of Chicago Automations!')
 ].map(command => command.toJSON());
 
-// --- 3. BOT READY & GLOBAL COMMAND REGISTRATION ---
+// --- 3. BOT READY & COMMAND REGISTRATION ---
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     
+    // Run the status function right away on startup
+    await updateBotStatus();
+    
+    // Set a recurring timer to auto-refresh the member count status every 2 minutes
+    setInterval(async () => {
+        await updateBotStatus();
+    }, 1000 * 60 * 2);
+
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
         console.log('Started refreshing global application (/) commands...');
-        
-        // GLOBAL REGISTRATION: No longer requires a SERVER_ID variable!
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
         );
-        
         console.log('Successfully reloaded application (/) commands globally!');
         console.log('Chicago Automations is 100% ready!');
     } catch (error) {
@@ -55,11 +82,9 @@ client.once('ready', async () => {
 
 // --- 4. HANDLE THE SLASH COMMAND INTERACTIONS ---
 client.on('interactionCreate', async interaction => {
-    // Stop immediately if it's not a slash text command
     if (!interaction.isChatInputCommand()) return;
 
     console.log(`Received slash command: /${interaction.commandName}`);
-
     const { commandName } = interaction;
 
     try {
@@ -70,31 +95,27 @@ client.on('interactionCreate', async interaction => {
         }
     } catch (error) {
         console.error(`Error executing /${commandName}:`, error);
-        // Fallback response so it never freezes
         if (!interaction.replied) {
             await interaction.reply({ content: 'An internal error occurred while processing this automation task.', ephemeral: true });
         }
     }
 });
 
-// --- 5. AUTOMATIC WELCOME EVENT FROM ENVIRONMENT ---
+// --- 5. AUTOMATIC WELCOME EVENT & STATUS REFRESH ---
 client.on('guildMemberAdd', async (member) => {
+    // Instant status update when someone joins
+    await updateBotStatus();
+
     const welcomeChannelId = process.env.WELCOME_CHANNEL_ID;
-    if (!welcomeChannelId) {
-        console.log('Welcome event skipped: WELCOME_CHANNEL_ID environment variable is missing.');
-        return;
-    }
+    if (!welcomeChannelId) return;
 
     const channel = member.guild.channels.cache.get(welcomeChannelId);
-    if (!channel) {
-        console.log(`Welcome channel with ID ${welcomeChannelId} not found in cache.`);
-        return;
-    }
+    if (!channel) return;
 
     const totalMembers = member.guild.memberCount;
 
     const welcomeEmbed = new EmbedBuilder()
-        .setColor('#FF0000')
+        .setColor('#00000000')
         .setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`);
 
     const memberCountButton = new ButtonBuilder()
@@ -109,6 +130,11 @@ client.on('guildMemberAdd', async (member) => {
         embeds: [welcomeEmbed],
         components: [row]
     });
+});
+
+// --- 6. AUTOMATIC REMOVE EVENT ---
+client.on('guildMemberRemove', async (member) => {
+    await updateBotStatus();
 });
 
 client.login(process.env.DISCORD_TOKEN);
