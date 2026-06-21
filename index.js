@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 
 // --- 1. START LIGHTWEIGHT WEB SERVER FOR RENDER ---
@@ -18,42 +18,93 @@ app.listen(PORT, () => {
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers // Required to detect when someone joins!
+        GatewayIntentBits.GuildMembers
     ] 
 });
 
-// Run when the bot logs in
-client.once('ready', () => {
+// Define Slash Commands
+const commands = [
+    new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Replies with pong and checks bot latency!'),
+    new SlashCommandBuilder()
+        .setName('chicago')
+        .setDescription('Check the status of Chicago Automations!')
+].map(command => command.toJSON());
+
+// --- 3. BOT READY & GLOBAL COMMAND REGISTRATION ---
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    console.log('Chicago Automations is 100% ready!');
+    
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    try {
+        console.log('Started refreshing global application (/) commands...');
+        
+        // GLOBAL REGISTRATION: No longer requires a SERVER_ID variable!
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        
+        console.log('Successfully reloaded application (/) commands globally!');
+        console.log('Chicago Automations is 100% ready!');
+    } catch (error) {
+        console.error('Error registering slash commands:', error);
+    }
 });
 
-// --- 3. AUTOMATIC WELCOME EVENT ---
-client.on('guildMemberAdd', async (member) => {
-    // CHANGE THIS: Replace with your actual Welcome Channel ID string
-    const welcomeChannelId = '1443803363602075781'; 
-    
-    const channel = member.guild.channels.cache.get(welcomeChannelId);
-    if (!channel) return;
+// --- 4. HANDLE THE SLASH COMMAND INTERACTIONS ---
+client.on('interactionCreate', async interaction => {
+    // Stop immediately if it's not a slash text command
+    if (!interaction.isChatInputCommand()) return;
 
-    // Fetch total members in the server
+    console.log(`Received slash command: /${interaction.commandName}`);
+
+    const { commandName } = interaction;
+
+    try {
+        if (commandName === 'ping') {
+            await interaction.reply(`Pong! Latency is ${Date.now() - interaction.createdTimestamp}ms.`);
+        } else if (commandName === 'chicago') {
+            await interaction.reply('Chicago Automations system is fully operational and monitoring server activities.');
+        }
+    } catch (error) {
+        console.error(`Error executing /${commandName}:`, error);
+        // Fallback response so it never freezes
+        if (!interaction.replied) {
+            await interaction.reply({ content: 'An internal error occurred while processing this automation task.', ephemeral: true });
+        }
+    }
+});
+
+// --- 5. AUTOMATIC WELCOME EVENT FROM ENVIRONMENT ---
+client.on('guildMemberAdd', async (member) => {
+    const welcomeChannelId = process.env.WELCOME_CHANNEL_ID;
+    if (!welcomeChannelId) {
+        console.log('Welcome event skipped: WELCOME_CHANNEL_ID environment variable is missing.');
+        return;
+    }
+
+    const channel = member.guild.channels.cache.get(welcomeChannelId);
+    if (!channel) {
+        console.log(`Welcome channel with ID ${welcomeChannelId} not found in cache.`);
+        return;
+    }
+
     const totalMembers = member.guild.memberCount;
 
-    // Create the clean Welcome Embed Card matching your design
     const welcomeEmbed = new EmbedBuilder()
-        .setColor('#FF0000') // Bright red matching your example buttons
+        .setColor('#FF0000')
         .setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`);
 
-    // Create the member count indicator button underneath
     const memberCountButton = new ButtonBuilder()
         .setCustomId('member_count')
-        .setLabel(`${totalMembers}`) // Displays the raw user count number
-        .setStyle(ButtonStyle.Danger) // Red button style
-        .setDisabled(true); // Keeps it as a non-clickable layout block like your image
+        .setLabel(`${totalMembers}`)
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true);
 
     const row = new ActionRowBuilder().addComponents(memberCountButton);
 
-    // Send the card directly to your channel
     channel.send({
         embeds: [welcomeEmbed],
         components: [row]
