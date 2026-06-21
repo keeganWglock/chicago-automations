@@ -1,10 +1,23 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const express = require('express');
 
-// 1. Initialize Bot Client
+// --- 1. START LIGHTWEIGHT WEB SERVER FOR RENDER ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('Chicago Automations is Awake and Monitoring!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Web server listening on port ${PORT}`);
+});
+
+// --- 2. INITIALIZE DISCORD BOT CLIENT ---
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// 2. Define the Slash Commands
+// Define Slash Commands
 const commands = [
     new SlashCommandBuilder()
         .setName('ping')
@@ -14,14 +27,13 @@ const commands = [
         .setDescription('Check the status of Chicago Automations!')
 ].map(command => command.toJSON());
 
-// 3. Register Commands with Discord when the bot starts
+// Register Commands with Discord when the bot starts
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
         console.log('Started refreshing application (/) commands.');
-        // This registers commands globally across all servers your bot is in
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
@@ -33,7 +45,7 @@ client.once('ready', async () => {
     }
 });
 
-// 4. Handle the Slash Command Interactions
+// Handle Slash Command Interactions
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
