@@ -34,7 +34,7 @@ async function updateBotStatus() {
         // Force explicit updates via the presence manager
         client.user.setPresence({
             activities: [{ 
-                name: `${totalMembers} members`, 
+                name: `Watching over ${totalMembers} members`, 
                 type: ActivityType.Watching 
             }],
             status: 'online'
