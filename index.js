@@ -1,10 +1,10 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 
 // --- 1. START LIGHTWEIGHT WEB SERVER FOR RENDER ---
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.get('/', (req, res) => {
     res.send('Chicago Automations is Awake and Monitoring!');
@@ -14,48 +14,50 @@ app.listen(PORT, () => {
     console.log(`Web server listening on port ${PORT}`);
 });
 
-// --- 2. INITIALIZE DISCORD BOT CLIENT ---
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-// Define Slash Commands
-const commands = [
-    new SlashCommandBuilder()
-        .setName('ping')
-        .setDescription('Replies with pong and checks bot latency!'),
-    new SlashCommandBuilder()
-        .setName('chicago')
-        .setDescription('Check the status of Chicago Automations!')
-].map(command => command.toJSON());
-
-// Register Commands with Discord when the bot starts
-client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}!`);
-    
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    try {
-        console.log('Started refreshing application (/) commands.');
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands },
-        );
-        console.log('Successfully reloaded application (/) commands.');
-        console.log('Chicago Automations is 100% ready!');
-    } catch (error) {
-        console.error(error);
-    }
+// --- 2. INITIALIZE DISCORD BOT CLIENT WITH MEMBER INTENTS ---
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers // Required to detect when someone joins!
+    ] 
 });
 
-// Handle Slash Command Interactions
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+// Run when the bot logs in
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+    console.log('Chicago Automations is 100% ready!');
+});
 
-    const { commandName } = interaction;
+// --- 3. AUTOMATIC WELCOME EVENT ---
+client.on('guildMemberAdd', async (member) => {
+    // CHANGE THIS: Replace with your actual Welcome Channel ID string
+    const welcomeChannelId = '1443803363602075781'; 
+    
+    const channel = member.guild.channels.cache.get(welcomeChannelId);
+    if (!channel) return;
 
-    if (commandName === 'ping') {
-        await interaction.reply(`Pong! Latency is ${Date.now() - interaction.createdTimestamp}ms.`);
-    } else if (commandName === 'chicago') {
-        await interaction.reply('Chicago Automations system is fully operational and monitoring server activities.');
-    }
+    // Fetch total members in the server
+    const totalMembers = member.guild.memberCount;
+
+    // Create the clean Welcome Embed Card matching your design
+    const welcomeEmbed = new EmbedBuilder()
+        .setColor('#FF0000') // Bright red matching your example buttons
+        .setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`);
+
+    // Create the member count indicator button underneath
+    const memberCountButton = new ButtonBuilder()
+        .setCustomId('member_count')
+        .setLabel(`${totalMembers}`) // Displays the raw user count number
+        .setStyle(ButtonStyle.Danger) // Red button style
+        .setDisabled(true); // Keeps it as a non-clickable layout block like your image
+
+    const row = new ActionRowBuilder().addComponents(memberCountButton);
+
+    // Send the card directly to your channel
+    channel.send({
+        embeds: [welcomeEmbed],
+        components: [row]
+    });
 });
 
 client.login(process.env.DISCORD_TOKEN);
