@@ -14,23 +14,24 @@ app.listen(PORT, () => {
     console.log(`Web server listening on port ${PORT}`);
 });
 
-// --- 2. INITIALIZE DISCORD BOT CLIENT WITH MEMBER INTENTS ---
+// --- 2. INITIALIZE DISCORD BOT CLIENT WITH ALL REQUIRED INTENTS ---
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers
-    ] 
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences // CRITICAL: Fixes bot presence status visibility blocking!
+    ]
 });
 
-// Fixed helper function using setPresence for v14 reliability
+// Helper function to sync status safely
 async function updateBotStatus() {
     try {
-        // Fetch the server directly by ID to bypass cache failures
         const guild = await client.guilds.fetch(process.env.SERVER_ID);
         if (!guild) return;
         
         const totalMembers = guild.memberCount;
         
+        // Force explicit updates via the presence manager
         client.user.setPresence({
             activities: [{ 
                 name: `${totalMembers} members`, 
@@ -58,10 +59,10 @@ const commands = [
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     
-    // Run the status function right away on startup
+    // Fire right away on connection
     await updateBotStatus();
     
-    // Set a recurring timer to auto-refresh the member count status every 2 minutes
+    // Refresh interval loop every 2 minutes
     setInterval(async () => {
         await updateBotStatus();
     }, 1000 * 60 * 2);
@@ -103,7 +104,6 @@ client.on('interactionCreate', async interaction => {
 
 // --- 5. AUTOMATIC WELCOME EVENT & STATUS REFRESH ---
 client.on('guildMemberAdd', async (member) => {
-    // Instant status update when someone joins
     await updateBotStatus();
 
     const welcomeChannelId = process.env.WELCOME_CHANNEL_ID;
