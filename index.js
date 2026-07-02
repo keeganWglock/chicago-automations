@@ -2,10 +2,18 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ActivityType } = require('discord.js'); 
 const express = require('express'); 
 
-// --- 1. INITIALIZE DISCORD BOT CLIENT WITH ALL REQUIRED INTENTS --- 
-const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences ] }); 
+// --- 1. INITIALIZE DISCORD BOT CLIENT WITH ALL UNLOCKED INTENTS --- 
+const client = new Client({ 
+    intents: [ 
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMembers, 
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ] 
+}); 
 
-// --- 2. START LIGHTWEIGHT WEB SERVER FOR RENDER --- 
+// --- 2. START LIGHTWEIGHT WEB SERVER --- 
 const app = express(); 
 const PORT = process.env.PORT || 10000; 
 
@@ -33,7 +41,7 @@ async function updateBotStatus() {
     } 
 } 
 
-// Define Slash Commands (Only /ping remains) 
+// Define Slash Commands 
 const commands = [ 
     new SlashCommandBuilder() 
         .setName('ping') 
@@ -78,7 +86,7 @@ client.on('guildMemberAdd', async (member) => {
     await updateBotStatus(); 
     const welcomeChannelId = process.env.WELCOME_CHANNEL_ID; 
     if (!welcomeChannelId) return; 
-    const channel = member.guild.channels.cache.get(welcomeChannelId); 
+    const channel = await member.guild.channels.fetch(welcomeChannelId).catch(() => null); 
     if (!channel) return; 
     const totalMembers = member.guild.memberCount; 
     const welcomeEmbed = new EmbedBuilder().setColor('#00000000').setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`); 
@@ -92,10 +100,10 @@ client.on('guildMemberRemove', async (member) => {
     await updateBotStatus(); 
 }); 
 
-// --- BIND SERVER LIFECYCLE FOR RENDER ---
+// --- BIND LIVE EXECUTION LOOP --- 
 app.listen(PORT, () => { 
     console.log(`Web server listening on port ${PORT}`); 
-    client.login(process.env.DISCORD_TOKEN).catch(err => {
-        console.error("Discord Login Process Error:", err.message);
-    });
+    client.login(process.env.DISCORD_TOKEN).catch(err => { 
+        console.error("Discord Login Process Error:", err.message); 
+    }); 
 });
