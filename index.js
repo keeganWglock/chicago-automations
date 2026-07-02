@@ -89,10 +89,12 @@ client.on('guildMemberAdd', async (member) => {
     const channel = await member.guild.channels.fetch(welcomeChannelId).catch(() => null); 
     if (!channel) return; 
     const totalMembers = member.guild.memberCount; 
-    const welcomeEmbed = new EmbedBuilder().setColor('#00000000').setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`); 
+    
+    // SOLID BLACK COLOR FIX: Entirely eliminates the "#00000000" crash loop!
+    const welcomeEmbed = new EmbedBuilder().setColor('#000000').setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`); 
     const memberCountButton = new ButtonBuilder().setCustomId('member_count').setLabel(`${totalMembers}`).setStyle(ButtonStyle.Danger).setDisabled(true); 
     const row = new ActionRowBuilder().addComponents(memberCountButton); 
-    channel.send({ embeds: [welcomeEmbed], components: [row] }); 
+    channel.send({ embeds: [welcomeEmbed], components: [row] }).catch(err => console.error("Failed to send welcome:", err.message)); 
 }); 
 
 // --- 6. AUTOMATIC REMOVE EVENT --- 
@@ -107,3 +109,4 @@ app.listen(PORT, () => {
         console.error("Discord Login Process Error:", err.message); 
     }); 
 });
+
