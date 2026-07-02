@@ -14,8 +14,18 @@ const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBi
 // Helper function to sync status safely 
 async function updateBotStatus() { 
     try { 
-        const guild = await client.guilds.fetch(process.env.SERVER_ID); 
-        if (!guild) return; 
+        // SAFETY FIX: If SERVER_ID is missing in Render, use generic status instead of crashing
+        if (!process.env.SERVER_ID) { 
+            client.user.setPresence({ activities: [{ name: `Watching over the server`, type: ActivityType.Watching }], status: 'online' }); 
+            return; 
+        }
+        
+        const guild = await client.guilds.fetch(process.env.SERVER_ID).catch(() => null); 
+        if (!guild) {
+            client.user.setPresence({ activities: [{ name: `Watching over the server`, type: ActivityType.Watching }], status: 'online' }); 
+            return;
+        }
+
         const totalMembers = guild.memberCount; 
         client.user.setPresence({ activities: [{ name: `Watching over ${totalMembers} members`, type: ActivityType.Watching }], status: 'online' }); 
         console.log(`Status synced successfully: Watching ${totalMembers} members.`); 
@@ -24,7 +34,7 @@ async function updateBotStatus() {
     } 
 } 
 
-// Define Slash Commands 
+// Define Slash Commands (Only /ping remains)
 const commands = [ 
     new SlashCommandBuilder() 
         .setName('ping') 
@@ -72,8 +82,8 @@ client.on('guildMemberAdd', async (member) => {
     const channel = member.guild.channels.cache.get(welcomeChannelId); 
     if (!channel) return; 
     const totalMembers = member.guild.memberCount; 
-    const welcomeEmbed = new EmbedBuilder() .setColor('#00000000') .setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`); 
-    const memberCountButton = new ButtonBuilder() .setCustomId('member_count') .setLabel(`${totalMembers}`) .setStyle(ButtonStyle.Danger) .setDisabled(true); 
+    const welcomeEmbed = new EmbedBuilder().setColor('#00000000').setDescription(`👋 Welcome ${member} to **${member.guild.name}**!`); 
+    const memberCountButton = new ButtonBuilder().setCustomId('member_count').setLabel(`${totalMembers}`).setStyle(ButtonStyle.Danger).setDisabled(true); 
     const row = new ActionRowBuilder().addComponents(memberCountButton); 
     channel.send({ embeds: [welcomeEmbed], components: [row] }); 
 }); 
