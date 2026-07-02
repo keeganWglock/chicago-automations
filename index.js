@@ -2,30 +2,29 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ActivityType } = require('discord.js'); 
 const express = require('express'); 
 
-// --- 1. START LIGHTWEIGHT WEB SERVER FOR RENDER --- 
+// --- 1. INITIALIZE DISCORD BOT CLIENT WITH ALL REQUIRED INTENTS --- 
+const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences ] }); 
+
+// --- 2. START LIGHTWEIGHT WEB SERVER FOR RENDER --- 
 const app = express(); 
 const PORT = process.env.PORT || 10000; 
-app.get('/', (req, res) => { res.send('Chicago Automations is Awake and Monitoring!'); }); 
-app.listen(PORT, () => { console.log(`Web server listening on port ${PORT}`); }); 
 
-// --- 2. INITIALIZE DISCORD BOT CLIENT WITH ALL REQUIRED INTENTS --- 
-const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences ] }); 
+app.get('/', (req, res) => { 
+    res.send('Chicago Automations is Awake and Monitoring!'); 
+}); 
 
 // Helper function to sync status safely 
 async function updateBotStatus() { 
     try { 
-        // SAFETY FIX: If SERVER_ID is missing in Render, use generic status instead of crashing
         if (!process.env.SERVER_ID) { 
             client.user.setPresence({ activities: [{ name: `Watching over the server`, type: ActivityType.Watching }], status: 'online' }); 
             return; 
-        }
-        
+        } 
         const guild = await client.guilds.fetch(process.env.SERVER_ID).catch(() => null); 
-        if (!guild) {
+        if (!guild) { 
             client.user.setPresence({ activities: [{ name: `Watching over the server`, type: ActivityType.Watching }], status: 'online' }); 
-            return;
-        }
-
+            return; 
+        } 
         const totalMembers = guild.memberCount; 
         client.user.setPresence({ activities: [{ name: `Watching over ${totalMembers} members`, type: ActivityType.Watching }], status: 'online' }); 
         console.log(`Status synced successfully: Watching ${totalMembers} members.`); 
@@ -34,7 +33,7 @@ async function updateBotStatus() {
     } 
 } 
 
-// Define Slash Commands (Only /ping remains)
+// Define Slash Commands (Only /ping remains) 
 const commands = [ 
     new SlashCommandBuilder() 
         .setName('ping') 
@@ -93,4 +92,10 @@ client.on('guildMemberRemove', async (member) => {
     await updateBotStatus(); 
 }); 
 
-client.login(process.env.DISCORD_TOKEN);
+// --- BIND SERVER LIFECYCLE FOR RENDER ---
+app.listen(PORT, () => { 
+    console.log(`Web server listening on port ${PORT}`); 
+    client.login(process.env.DISCORD_TOKEN).catch(err => {
+        console.error("Discord Login Process Error:", err.message);
+    });
+});
